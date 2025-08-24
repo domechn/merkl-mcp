@@ -1,0 +1,40 @@
+{
+  "name": "merkl-mcp-server",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "MCP server exposing Merkl opportunities via @modelcontextprotocol/sdk",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+  "start": "node dist/src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "check": "tsc --noEmit",
+    "smoke": "tsx scripts/smoke.ts",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "bin": {
+    "merkl-mcp": "bin/merkl-mcp.mjs",
+    "merkl-mcp-server": "bin/merkl-mcp.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "package.json"
+  ],
+  "dependencies": {
+  "@modelcontextprotocol/sdk": "^1.17.4",
+  "zod": "^3.23.8"
+  },
+  "devDependencies": {
+  "@types/node": "^22.5.4",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4"
+  }
+}
