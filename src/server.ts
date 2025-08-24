@@ -16,7 +16,7 @@ if (!Number.isFinite(nodeMajor) || nodeMajor < 18) {
 }
 
 const client = new MerklClient({})
-const server = new McpServer({ name: "merkl-mcp", version: "0.1.0" })
+const server = new McpServer({ name: "merkl-mcp", version: "0.1.8" })
 
 // Lightweight debug logger: only logs when MERKL_DEBUG=1|true or DEBUG contains 'merkl'
 const isDebug =
@@ -30,6 +30,9 @@ const debugLog = (...args: unknown[]) => {
 	}
 }
 
+function formatTimestamp(timestamp: number): string {
+	return new Date(timestamp * 1000).toISOString()
+}
 
 export const campaignSchema = z
 	.object({
@@ -40,11 +43,11 @@ export const campaignSchema = z
 			description: "A hash of the campaign, unique per chain. Can be used to identify campaigns across chains",
 		}),
 		type: z.string(),
-		startTimestamp: z.number({
-			description: "Timestamp when the campaign starts",
+		startTime: z.string({
+			description: "Time when the campaign starts",
 		}),
-		endTimestamp: z.number({
-			description: "Timestamp when the campaign ends",
+		endTime: z.string({
+			description: "Time when the campaign ends",
 		}),
 		apr: z.number({
 			description: "Annual Percentage Rate (APR) for the campaign, if applicable"
@@ -54,6 +57,31 @@ export const campaignSchema = z
 		}).optional(),
 	})
 	.passthrough()
+
+server.registerTool(
+	"get-current-timestamp",
+	{
+		title: "Get Current Timestamp",
+		description: "Retrieves the current timestamp.",
+		inputSchema: {},
+		outputSchema: {
+			timestamp: z.number().describe("Current timestamp in milliseconds since the Unix epoch"),
+		}
+	},
+	async () => {
+		const timestamp = Date.now()
+		const result = { timestamp }
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(result, null, 2),
+				},
+			],
+			structuredContent: result,
+		}
+	}
+)
 
 // opportunities.search
 server.registerTool(
@@ -67,7 +95,7 @@ server.registerTool(
 				.number({ description: "Number of items returned by page (1-100). Default: 20" })
 				.min(1)
 				.max(100)
-				.default(20)
+				.default(100)
 				.optional(),
 			name: z.string({ description: "Filter by name" }).optional(),
 			search: z.string({ description: "Search amongst multiple values (token, protocols, tags, campaigns)" }).optional(),
@@ -150,6 +178,9 @@ server.registerTool(
 		if (_(args).has("campaigns") === false) {
 			args = _(args).set("campaigns", true).value()
 		}
+		if (_(args).has("items") === false) {
+			args = _(args).set("items", 100).value()
+		}
 		const excludeEndedCampaigns = args.excludeEndedCampaigns !== false
 		const opportunities = await client.listOpportunities(args as OpportunitiesQuery)
 		const nowTs = Date.now() / 1000
@@ -166,7 +197,8 @@ server.registerTool(
 				id: c.id,
 				campaignId: c.campaignId,
 				type: c.type,
-				startTimestamp: c.startTimestamp,
+				startTime: formatTimestamp(c.startTimestamp),
+				endTime: formatTimestamp(c.endTimestamp),
 				endTimestamp: c.endTimestamp,
 				apr: c.apr,
 				createdAt: c.createdAt,
@@ -242,7 +274,31 @@ server.registerTool(
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
-		const result = { opportunity }
+		const result = { opportunity: {
+			id: opportunity.id,
+			name: opportunity.name,
+			description: opportunity.description,
+			type: opportunity.type,
+			identifier: opportunity.identifier,
+			status: opportunity.status,
+			action: opportunity.action,
+			chainId: opportunity.chainId,
+			apr: opportunity.apr,
+			maxApr: opportunity.maxApr,
+			dailyRewards: opportunity.dailyRewards,
+			tvl: opportunity.tvl,
+			depositUrl: opportunity.depositUrl,
+			explorerAddress: opportunity.explorerAddress,
+			tags: opportunity.tags,
+			campaigns: _(opportunity.campaigns).map(c => ({
+				id: c.id,
+				name: c.name,
+				description: c.description,
+				startTime: formatTimestamp(c.startTime),
+				endTime: formatTimestamp(c.endTime),
+			})),
+			tokens: opportunity.tokens,
+		} }
 		return {
 			content: [
 				{
@@ -311,7 +367,33 @@ server.registerTool(
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
-		const result = { opportunity }
+		const result = {
+			opportunity: {
+				id: opportunity.id,
+				name: opportunity.name,
+				description: opportunity.description,
+				type: opportunity.type,
+				identifier: opportunity.identifier,
+				status: opportunity.status,
+				action: opportunity.action,
+				chainId: opportunity.chainId,
+				apr: opportunity.apr,
+				maxApr: opportunity.maxApr,
+				dailyRewards: opportunity.dailyRewards,
+				tvl: opportunity.tvl,
+				depositUrl: opportunity.depositUrl,
+				explorerAddress: opportunity.explorerAddress,
+				tags: opportunity.tags,
+				campaigns: _(opportunity.campaigns).map(c => ({
+					id: c.id,
+					name: c.name,
+					description: c.description,
+					startTime: formatTimestamp(c.startTime),
+					endTime: formatTimestamp(c.endTime),
+				})),
+				tokens: opportunity.tokens,
+			}
+		}
 		return {
 			content: [
 				{
@@ -791,12 +873,11 @@ server.registerTool(
 				.number({ description: "Number of items returned by page (1-100). Default: 20" })
 				.min(1)
 				.max(100)
-				.default(20)
+				.default(100)
 				.optional(),
 			name: z.string({ description: "Filter by name" }).optional(),
 			search: z.string({ description: "Search amongst multiple values (token, protocols, tags, campaigns)" }).optional(),
 			campaignId: z.string({ description: "Search the campaign by campaignId" }).optional(),
-			creatorSlug: z.string().optional(),
 			chainId: z
 				.string({ description: "A comma separated list of chain ids. Example: ?chainId=1,42161" })
 				.regex(/^\d+(,\d+)*$/)
@@ -810,7 +891,6 @@ server.registerTool(
 				.optional(),
 			point: z.boolean({ description: "Include point campaigns" }).optional(),
 			type: z.string({ description: "A comma separated list of Campaign type" }).optional(),
-			creatorAddress: z.string({ description: "Filter by creator address" }).optional(),
 			tags: z.string({ description: "Filter by tag" }).optional(),
 			test: z.boolean({ description: "Include test campaigns" }).default(false).optional(),
 			minimumTvl: z.number({ description: "Minimum TVL threshold in USD" }).optional(),
@@ -823,9 +903,6 @@ server.registerTool(
 				.optional(),
 			identifier: z.string({ description: "Filter by identifier (mainParameter)" }).optional(),
 			tokens: z.string({ description: "A comma separated list of token symbol. Use to filter by token" }).optional(),
-			rewardTokenSymbol: z
-				.string({ description: "Filter by campaign with reward token having this symbol" })
-				.optional(),
 			sort: z
 				.enum(["apr", "tvl", "rewards", "lastCampaignCreatedAt", "createdAt"])
 				.describe("Sort by apr, tvl, rewards, last campaign creation date, or creation date")
@@ -835,21 +912,11 @@ server.registerTool(
 				.array(z.enum(["FIX_REWARD", "MAX_REWARD", "DUTCH_AUCTION"]))
 				.describe("Filter by distribution type. Legal values: FIX_REWARD, MAX_REWARD, DUTCH_AUCTION")
 				.optional(),
-			mainProtocolId: z
-				.string({ description: "A comma separated list of protocol ids. See GET /v4/protocols" })
-				.optional(),
-			programSlugs: z
-				.string({ description: "A comma separated list of program ids or slugs. See GET /v4/programs" })
-				.optional(),
 			chainName: z
 				.string({ description: "A comma separated list of chain names. Example: ?chainName=ethereum,arbitrum" })
 				.regex(/^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)*$/)
 				.optional(),
-			excludeSubCampaigns: z.boolean({ description: "Exclude sub-campaigns from the results" }).default(false).optional(),
 			opportunityId: z.string({ description: "Filter by opportunity ID" }).optional(),
-			rewardTokenId: z.string({ description: "Filter by reward token ID" }).optional(),
-			computeChainId: z.string({ description: "Filter by compute chain ID" }).optional(),
-			distributionChainId: z.string({ description: "Filter by distribution chain ID" }).optional(),
 			startTimestamp: z.number({ description: "Filter campaigns starting after this timestamp" }).optional(),
 			endTimestamp: z.number({ description: "Filter campaigns ending before this timestamp" }).optional(),
 		},
@@ -866,8 +933,8 @@ server.registerTool(
 							rewardTokenId: z.string().describe("Reward token ID"),
 							amount: z.string().describe("Campaign amount"),
 							opportunityId: z.string().describe("Related opportunity ID"),
-							startTimestamp: z.number().describe("Campaign start timestamp"),
-							endTimestamp: z.number().describe("Campaign end timestamp"),
+							startTime: z.string().describe("Campaign start time"),
+							endTime: z.string().describe("Campaign end time"),
 							dailyRewards: z.number().describe("Daily rewards"),
 							apr: z.number().describe("Annual Percentage Rate"),
 							createdAt: z.string().describe("Campaign creation timestamp"),
@@ -879,6 +946,9 @@ server.registerTool(
 		},
 	},
 	async (args) => {
+		if (_(args).has("items") === false) {
+			args = _(args).set("items", 100).value()
+		}
 		const campaigns = await client.listCampaigns(args as CampaignsQuery)
 		const results = _(campaigns).map((c: any) => ({
 			id: c.id,
@@ -889,8 +959,8 @@ server.registerTool(
 			rewardTokenId: c.rewardTokenId,
 			amount: c.amount,
 			opportunityId: c.opportunityId,
-			startTimestamp: c.startTimestamp,
-			endTimestamp: c.endTimestamp,
+			startTime: formatTimestamp(c.startTimestamp),
+			endTime: formatTimestamp(c.endTimestamp),
 			dailyRewards: c.dailyRewards,
 			apr: c.apr,
 			createdAt: c.createdAt,
@@ -940,21 +1010,14 @@ server.registerTool(
 					rewardTokenId: z.string(),
 					amount: z.string(),
 					opportunityId: z.string(),
-					startTimestamp: z.number(),
-					endTimestamp: z.number(),
+					startTime: z.string(),
+					endTime: z.string(),
 					dailyRewards: z.number(),
 					apr: z.number(),
 					creatorAddress: z.string(),
-					computeChainId: z.number(),
-					distributionChainId: z.number(),
-					params: z.any().optional(),
 					chain: z.any().optional(),
-					rewardToken: z.any().optional(),
 					distributionChain: z.any().optional(),
-					campaignStatus: z.any().optional(),
-					creator: z.any().optional(),
 					createdAt: z.string(),
-					childCampaignIds: z.array(z.string()).optional(),
 				})
 				.passthrough()
 				.nullable()
@@ -968,7 +1031,26 @@ server.registerTool(
 			tokenTypes: tokenTypes as ("TOKEN" | "PRETGE" | "POINT")[] | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
-		const result = { campaign }
+		const result = {
+			campaign: {
+				id: campaign.id,
+				campaignId: campaign.campaignId,
+				type: campaign.type,
+				distributionType: campaign.distributionType,
+				subType: campaign.subType,
+				rewardTokenId: campaign.rewardTokenId,
+				amount: campaign.amount,
+				opportunityId: campaign.opportunityId,
+				startTime: formatTimestamp(campaign.startTime),
+				endTime: formatTimestamp(campaign.endTime),
+				dailyRewards: campaign.dailyRewards,
+				apr: campaign.apr,
+				creatorAddress: campaign.creatorAddress,
+				chain: campaign.chain,
+				distributionChain: campaign.distributionChain,
+				createdAt: campaign.createdAt,
+			}
+		}
 		return {
 			content: [
 				{
