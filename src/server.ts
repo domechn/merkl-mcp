@@ -16,7 +16,7 @@ if (!Number.isFinite(nodeMajor) || nodeMajor < 18) {
 }
 
 const client = new MerklClient({})
-const server = new McpServer({ name: "merkl-mcp", version: "0.1.8" })
+const server = new McpServer({ name: "merkl-mcp", version: "0.1.9" })
 
 // Lightweight debug logger: only logs when MERKL_DEBUG=1|true or DEBUG contains 'merkl'
 const isDebug =

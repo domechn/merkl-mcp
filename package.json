@@ -1,11 +1,15 @@
 {
   "name": "merkl-mcp",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": false,
   "type": "module",
   "description": "MCP server exposing Merkl opportunities via @modelcontextprotocol/sdk",
   "engines": {
     "node": ">=18.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/domechn/merkl-mcp.git"
   },
   "scripts": {
     "start": "node dist/src/server.js",
