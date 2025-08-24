@@ -77,6 +77,57 @@ npx merkl-mcp
 
 If `dist/server.js` is missing, the CLI will build automatically on first run.
 
+## Connect to Claude Desktop (macOS)
+
+Claude Desktop supports MCP over stdio. Add this server to Claude's config and restart the app.
+
+1. Create or edit config file
+
+- Path: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+2. Use the published package (one-line npx)
+
+```json
+{
+  "mcpServers": {
+    "merkl": {
+      "command": "npx",
+      "args": ["-y", "merkl-mcp-server"],
+      "env": {
+        "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
+      }
+    }
+  }
+}
+```
+
+3. Or run from local repo
+
+```json
+{
+  "mcpServers": {
+    "merkl": {
+      "command": "node",
+      "args": ["dist/src/server.js"],
+      "cwd": "./merkl-mcp-server",
+      "env": {
+        "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
+      }
+    }
+  }
+}
+```
+
+4. Restart Claude Desktop
+
+- Start a new chat; the tool named `merkl` should appear in the Tools list.
+
+Troubleshooting
+
+- Ensure Node.js 18+ is installed and available to Claude's environment.
+- Remove `MERKL_API_KEY` if you don't have one; public endpoints work without it.
+- Check Claude logs if tools don't appear; verify the config file path and JSON syntax.
+
 ## Publish to npm
 
 Set the name in package.json (already set up for you via bin aliases) and publish:

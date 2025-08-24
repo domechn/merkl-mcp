@@ -35,25 +35,29 @@ export type OpportunitiesQuery = {
   excludeSubCampaigns?: boolean;
 };
 
+import nodeFetch from "node-fetch"
+
+type NodeFetch = typeof nodeFetch
+
 export interface MerklClientOptions {
   baseUrl?: string; // default https://api.merkl.xyz
   apiKey?: string; // optional bearer token, if provided
-  fetchFn?: typeof fetch; // override for testing
+  fetchFn?: NodeFetch; // override for testing
 }
 
 export class MerklClient {
   private baseUrl: string;
   private apiKey?: string;
-  private fetchFn: typeof fetch;
+  private fetchFn: NodeFetch;
 
   constructor(opts: MerklClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? process.env.MERKL_BASE_URL ?? "https://api.merkl.xyz").replace(/\/$/, "");
     this.apiKey = opts.apiKey ?? process.env.MERKL_API_KEY;
-    this.fetchFn = opts.fetchFn ?? fetch;
+    this.fetchFn = opts.fetchFn ?? nodeFetch;
   }
 
-  private headers(): HeadersInit {
-    const h: HeadersInit = { "content-type": "application/json" };
+  private headers(): Record<string, string> {
+    const h: Record<string, string> = { "content-type": "application/json" };
     if (this.apiKey) h["authorization"] = `Bearer ${this.apiKey}`;
     return h;
   }
