@@ -71,7 +71,7 @@ Note: Requires Node 18+. Enable debug logs by setting `MERKL_DEBUG=1`.
 
 ### One-line npx startup
 
-After publishing as `merkl-mcp-server` to npm (or using `npm link`), you can start the server with:
+After publishing as `merkl-mcp` to npm (or using `npm link`), you can start the server with:
 
 ```bash
 npx merkl-mcp
@@ -94,7 +94,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
   "mcpServers": {
     "merkl": {
       "command": "npx",
-      "args": ["-y", "merkl-mcp-server"],
+      "args": ["-y", "merkl-mcp"],
       "env": {
         "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
       }
@@ -111,7 +111,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
     "merkl": {
       "command": "node",
       "args": ["dist/src/server.js"],
-      "cwd": "./merkl-mcp-server",
+      "cwd": "./merkl-mcp",
       "env": {
         "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
       }
@@ -142,7 +142,7 @@ npm publish --access public
 Then users can run:
 
 ```bash
-npx merkl-mcp-server
+npx merkl-mcp
 # or the short alias
 npx merkl-mcp
 ```

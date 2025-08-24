@@ -16,7 +16,7 @@ if (!Number.isFinite(nodeMajor) || nodeMajor < 18) {
 }
 
 const client = new MerklClient({})
-const server = new McpServer({ name: "merkl-mcp-server", version: "0.1.0" })
+const server = new McpServer({ name: "merkl-mcp", version: "0.1.0" })
 
 // Lightweight debug logger: only logs when MERKL_DEBUG=1|true or DEBUG contains 'merkl'
 const isDebug =
@@ -87,7 +87,7 @@ server.registerTool(
 			point: z.boolean({ description: "Include opportunities with point campaigns" }).optional(),
 			type: z.string({ description: "A comma separated list of Opportunity type" }).optional(),
 			creatorAddress: z.string({ description: "Filter by creator address" }).optional(),
-			tags: z.string({ description: "Filter by tag" }).optional(),
+			// tags: z.string({ description: "Filter by tag" }).optional(),
 			test: z.boolean({ description: "Include opportunities with test campaigns" }).default(false).optional(),
 			minimumTvl: z.number({ description: "Minimum TVL threshold in USD" }).optional(),
 			maximumTvl: z.number({ description: "Maximum TVL threshold in USD" }).optional(),
