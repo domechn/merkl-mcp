@@ -39,15 +39,15 @@ npm run smoke
 
 ## Tools exposed
 
-- opportunities.search
-- opportunities.get
-- opportunities.campaigns
-- opportunities.count
-- opportunities.binsApr
-- opportunities.binsTvl
-- opportunities.aggregate
-- opportunities.aggregateMax
-- opportunities.aggregateMin
+- opportunities-search
+- opportunities-get
+- opportunities-campaigns
+- opportunities-count
+- opportunities-bins-apr
+- opportunities-bins-tvl
+- opportunities-aggregate
+- opportunities-aggregate-max
+- opportunities-aggregate-min
 
 ## Use with an MCP-compatible client
 
@@ -67,6 +67,8 @@ npm start
 
 Set env vars as needed (e.g. `MERKL_API_KEY`). The server will register tools listed above.
 
+Note: Requires Node 18+. Enable debug logs by setting `MERKL_DEBUG=1`.
+
 ### One-line npx startup
 
 After publishing as `merkl-mcp-server` to npm (or using `npm link`), you can start the server with:
@@ -85,7 +87,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
 
 - Path: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-2. Use the published package (one-line npx)
+1. Use the published package (one-line npx)
 
 ```json
 {
@@ -101,7 +103,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
 }
 ```
 
-3. Or run from local repo
+1. Or run from local repo
 
 ```json
 {
@@ -118,7 +120,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
 }
 ```
 
-4. Restart Claude Desktop
+1. Restart Claude Desktop
 
 - Start a new chat; the tool named `merkl` should appear in the Tools list.
 

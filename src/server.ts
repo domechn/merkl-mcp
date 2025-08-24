@@ -2,13 +2,57 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { MerklClient, OpportunitiesQuery } from "./merklClient.js"
+import _ from 'lodash'
+
+// Fail fast on unsupported Node versions to avoid silent protocol issues
+const [nodeMajor] = process.versions.node.split(".").map((s) => Number(s))
+if (!Number.isFinite(nodeMajor) || nodeMajor < 18) {
+	// eslint-disable-next-line no-console
+	console.error(
+		`[merkl-mcp] ERROR: Node.js ${process.versions.node} is not supported. Please use Node >= 18.\n` +
+		`You can point Claude to a newer Node by setting the MCP config command to the absolute path of Node 18+.`
+	)
+	process.exit(1)
+}
 
 const client = new MerklClient({})
 const server = new McpServer({ name: "merkl-mcp-server", version: "0.1.0" })
 
+// Lightweight debug logger: only logs when MERKL_DEBUG=1|true or DEBUG contains 'merkl'
+const isDebug =
+	process.env.MERKL_DEBUG === "1" ||
+	process.env.MERKL_DEBUG === "true" ||
+	(process.env.DEBUG ?? "").toLowerCase().includes("merkl")
+const debugLog = (...args: unknown[]) => {
+	if (isDebug) {
+		// eslint-disable-next-line no-console
+		console.error("[merkl-mcp]", ...args)
+	}
+}
+
+
+export const campaignSchema = z
+	.object({
+		id: z.string(),
+		computeChainId: z.number().optional(),
+		distributionChainId: z.number().optional(),
+		campaignId: z.string(),
+		type: z.string(),
+		distributionType: z.string().optional(),
+		subType: z.number().optional(),
+		rewardTokenId: z.string().optional(),
+		amount: z.string().optional(),
+		startTimestamp: z.number(),
+		endTimestamp: z.number(),
+		dailyRewards: z.number().optional(),
+		apr: z.number().optional(),
+		createdAt: z.string().optional(),
+	})
+	.passthrough()
+
 // opportunities.search
 server.registerTool(
-	"opportunities.search",
+	"opportunities-search",
 	{
 		title: "Retrieve Multiple Opportunities",
 		description: "This endpoint enables you to search for opportunities by providing specific criteria through query parameters.",
@@ -87,6 +131,8 @@ server.registerTool(
 							status: z.string().describe("LIVE/PAST/SOON"),
 							apr: z.number().nullable().optional(),
 							tvl: z.number().nullable().optional(),
+							link: z.string().describe("Link to the opportunity"),
+							campaigns: z.array(campaignSchema).describe("List of campaigns associated with the opportunity").optional(),
 						})
 						.passthrough()
 				)
@@ -95,13 +141,47 @@ server.registerTool(
 	},
 	async (args) => {
 		const res = await client.listOpportunities(args as OpportunitiesQuery)
-		return { content: [{ type: "text", text: JSON.stringify(res) }] }
+		const results = _(res).map(r => ({
+			id: r.id,
+			name: r.name,
+			chainId: r.chainId,
+			type: r.type,
+			status: r.status,
+			apr: r.apr,
+			tvl: r.tvl,
+			link: `https://app.merkl.xyz/opportunities/${_.lowerCase(r.chain.name)}/${r.type}/${r.identifier}`,
+			campaigns: _(r.campaigns).map(c => ({
+				id: c.id,
+				computeChainId: c.computeChainId,
+				distributionChainId: c.distributionChainId,
+				campaignId: c.campaignId,
+				type: c.type,
+				distributionType: c.distributionType,
+				subType: c.subType,
+				rewardTokenId: c.rewardTokenId,
+				amount: c.amount,
+				startTimestamp: c.startTimestamp,
+				endTimestamp: c.endTimestamp,
+				dailyRewards: c.dailyRewards,
+				apr: c.apr,
+				createdAt: c.createdAt,
+			})).value()
+		})).value()
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(results, null, 2),
+				},
+			],
+			structuredContent: { results },
+		}
 	}
 )
 
 // opportunities.get
 server.registerTool(
-	"opportunities.get",
+	"opportunities-get",
 	{
 		title: "Get Opportunity",
 		description: "GET /v4/opportunities/{id}",
@@ -109,9 +189,9 @@ server.registerTool(
 			id: z
 				.string({
 					description:
-						"The id of the opportunity. Pattern: (([0-9]*)-([0-9A-Z]*)-(0x([0-9A-Za-z])*) )|([0-9]{1,20})",
+						"The id of the opportunity. Pattern: (([0-9]*)-([0-9A-Z]*)-(0x([0-9A-Za-z])*))|([0-9]{1,20})",
 				})
-				.regex(/(^([0-9]*)-([0-9A-Z]*)-(0x[0-9A-Za-z]+)$)|(^[0-9]{1,20}$)/, "Invalid id format"),
+				.regex(/(([0-9]*)-([0-9A-Z]*)-(0x([0-9A-Za-z])*))|([0-9]{1,20})/, "Invalid id format"),
 			test: z.boolean({ description: "Include test campaigns" }).default(false).optional(),
 			point: z.boolean({ description: "Include point campaigns" }).optional(),
 			tokenTypes: z
@@ -140,8 +220,8 @@ server.registerTool(
 					explorerAddress: z.string().optional(),
 					tags: z.array(z.string()).optional(),
 					tokens: z.array(z.any()).optional(),
-					campaigns: z.array(z.any()).optional(),
-					lastCampaignCreatedAt: z.string().optional(),
+					campaigns: z.array(campaignSchema).optional(),
+					lastCampaignCreatedAt: z.union([z.string(), z.number()]).optional(),
 				})
 				.passthrough()
 				.nullable()
@@ -156,13 +236,21 @@ server.registerTool(
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
-		return { content: [{ type: "text", text: JSON.stringify(res) }] }
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(res, null, 2),
+				},
+			],
+			structuredContent: { opportunity: res },
+		}
 	}
 )
 
 // opportunities.campaigns
 server.registerTool(
-	"opportunities.campaigns",
+	"opportunities-campaigns",
 	{
 		title: "Opportunity Campaigns",
 		description: "GET /v4/opportunities/{id}/campaigns",
@@ -200,7 +288,7 @@ server.registerTool(
 					depositUrl: z.string().optional(),
 					explorerAddress: z.string().optional(),
 					tags: z.array(z.string()).optional(),
-					campaigns: z.array(z.any()).describe("Related campaigns").optional(),
+					campaigns: z.array(campaignSchema).describe("Related campaigns").optional(),
 					tokens: z.array(z.any()).optional(),
 				})
 				.passthrough()
@@ -216,13 +304,21 @@ server.registerTool(
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
-		return { content: [{ type: "text", text: JSON.stringify(res) }] }
+		return {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(res, null, 2),
+				},
+			],
+			structuredContent: { opportunity: res },
+		}
 	}
 )
 
 // opportunities.count
 server.registerTool(
-	"opportunities.count",
+	"opportunities-count",
 	{
 		title: "Count Opportunities",
 		description: "GET /v4/opportunities/count",
@@ -282,13 +378,19 @@ server.registerTool(
 		},
 	},
 	async (args) => {
-		const res = await client.countOpportunities(args as any)
-		return { content: [{ type: "text", text: JSON.stringify({ count: res }) }] }
+		const count = await client.countOpportunities(args as any)
+		const res = { count }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { count },
+		}
 	}
 )
 
 server.registerTool(
-	"opportunities.binsApr",
+	"opportunities-bins-apr",
 	{
 		title: "APR Bins",
 		description: "GET /v4/opportunities/bins/apr",
@@ -355,12 +457,17 @@ server.registerTool(
 	},
 	async (args) => {
 		const res = await client.binsApr(args as any)
-		return { content: [{ type: "text", text: JSON.stringify({ bins: res }) }] }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { bins: res },
+		}
 	}
 )
 
 server.registerTool(
-	"opportunities.binsTvl",
+	"opportunities-bins-tvl",
 	{
 		title: "TVL Bins",
 		description: "GET /v4/opportunities/bins/tvl",
@@ -427,12 +534,17 @@ server.registerTool(
 	},
 	async (args) => {
 		const res = await client.binsTvl(args as any)
-		return { content: [{ type: "text", text: JSON.stringify({ bins: res }) }] }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { bins: res },
+		}
 	}
 )
 
 server.registerTool(
-	"opportunities.aggregate",
+	"opportunities-aggregate",
 	{
 		title: "Aggregate Field",
 		description: "GET /v4/opportunities/aggregate/{field}",
@@ -501,12 +613,17 @@ server.registerTool(
 	},
 	async ({ field, ...rest }) => {
 		const res = await client.aggregate(field as string, rest as any)
-		return { content: [{ type: "text", text: JSON.stringify({ buckets: res }) }] }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { buckets: res },
+		}
 	}
 )
 
 server.registerTool(
-	"opportunities.aggregateMax",
+	"opportunities-aggregate-max",
 	{
 		title: "Aggregate Max",
 		description: "GET /v4/opportunities/aggregate/max/{field}",
@@ -568,12 +685,17 @@ server.registerTool(
 	},
 	async ({ field, ...rest }) => {
 		const res = await client.aggregateMax(field as string, rest as any)
-		return { content: [{ type: "text", text: JSON.stringify({ value: res }) }] }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { value: res },
+		}
 	}
 )
 
 server.registerTool(
-	"opportunities.aggregateMin",
+	"opportunities-aggregate-min",
 	{
 		title: "Aggregate Min",
 		description: "GET /v4/opportunities/aggregate/min/{field}",
@@ -635,15 +757,20 @@ server.registerTool(
 	},
 	async ({ field, ...rest }) => {
 		const res = await client.aggregateMin(field as string, rest as any)
-		return { content: [{ type: "text", text: JSON.stringify({ value: res }) }] }
+		return {
+			content: [
+				{ type: "text", text: JSON.stringify(res, null, 2) },
+			],
+			structuredContent: { value: res },
+		}
 	}
 )
 
 async function main() {
 	const transport = new StdioServerTransport()
 	await server.connect(transport)
-	// eslint-disable-next-line no-console
-	console.log("Merkl MCP server (stdio) running")
+	// Debug-only log (stderr); stdout is reserved for JSON-RPC
+	debugLog("Merkl MCP server (stdio) running")
 }
 
 main().catch((err) => {
