@@ -33,20 +33,25 @@ const debugLog = (...args: unknown[]) => {
 
 export const campaignSchema = z
 	.object({
-		id: z.string(),
-		computeChainId: z.number().optional(),
-		distributionChainId: z.number().optional(),
-		campaignId: z.string(),
+		id: z.string({
+			description: "Unique campaign id"
+		}),
+		campaignId: z.string({
+			description: "A hash of the campaign, unique per chain. Can be used to identify campaigns across chains",
+		}),
 		type: z.string(),
-		distributionType: z.string().optional(),
-		subType: z.number().optional(),
-		rewardTokenId: z.string().optional(),
-		amount: z.string().optional(),
-		startTimestamp: z.number(),
-		endTimestamp: z.number(),
-		dailyRewards: z.number().optional(),
-		apr: z.number().optional(),
-		createdAt: z.string().optional(),
+		startTimestamp: z.number({
+			description: "Timestamp when the campaign starts",
+		}),
+		endTimestamp: z.number({
+			description: "Timestamp when the campaign ends",
+		}),
+		apr: z.number({
+			description: "Annual Percentage Rate (APR) for the campaign, if applicable"
+		}).optional(),
+		createdAt: z.string({
+			description: "Timestamp when the campaign was created",
+		}).optional(),
 	})
 	.passthrough()
 
@@ -93,7 +98,7 @@ server.registerTool(
 				.regex(/^(LIVE|PAST|SOON)(,(LIVE|PAST|SOON)){0,2}$/)
 				.optional(),
 			identifier: z.string({ description: "Filter by identifier (mainParameter)" }).optional(),
-			campaigns: z.boolean({ description: "Include campaign data. Will slow down the request" }).default(false).optional(),
+			campaigns: z.boolean({ description: "Include campaign data. Will slow down the request" }).default(true).optional(),
 			tokens: z.string({ description: "A comma separated list of token symbol. Use to filter by token" }).optional(),
 			rewardTokenSymbol: z
 				.string({ description: "Filter by opportunity with at least 1 campaign where the reward token has this symbol" })
@@ -140,8 +145,12 @@ server.registerTool(
 		},
 	},
 	async (args) => {
-		const res = await client.listOpportunities(args as OpportunitiesQuery)
-		const results = _(res).map(r => ({
+		// if there is no "campaigns" in args, set it to true
+		if (_(args).has("campaigns") === false) {
+			args = _(args).set("campaigns", true).value()
+		}
+		const opportunities = await client.listOpportunities(args as OpportunitiesQuery)
+		const results = _(opportunities).map(r => ({
 			id: r.id,
 			name: r.name,
 			chainId: r.chainId,
@@ -152,29 +161,23 @@ server.registerTool(
 			link: `https://app.merkl.xyz/opportunities/${_.lowerCase(r.chain.name)}/${r.type}/${r.identifier}`,
 			campaigns: _(r.campaigns).map(c => ({
 				id: c.id,
-				computeChainId: c.computeChainId,
-				distributionChainId: c.distributionChainId,
 				campaignId: c.campaignId,
 				type: c.type,
-				distributionType: c.distributionType,
-				subType: c.subType,
-				rewardTokenId: c.rewardTokenId,
-				amount: c.amount,
 				startTimestamp: c.startTimestamp,
 				endTimestamp: c.endTimestamp,
-				dailyRewards: c.dailyRewards,
 				apr: c.apr,
 				createdAt: c.createdAt,
 			})).value()
 		})).value()
+		const result = { results }
 		return {
 			content: [
 				{
 					type: "text",
-					text: JSON.stringify(results, null, 2),
+					text: JSON.stringify(result, null, 2),
 				},
 			],
-			structuredContent: { results },
+			structuredContent: result,
 		}
 	}
 )
@@ -229,21 +232,22 @@ server.registerTool(
 		},
 	},
 	async ({ id, test, point, tokenTypes, campaigns, excludeSubCampaigns }) => {
-		const res = await client.getOpportunity(id as string, {
+		const opportunity = await client.getOpportunity(id as string, {
 			test: test as boolean | undefined,
 			point: point as boolean | undefined,
 			tokenTypes: tokenTypes as ("TOKEN" | "PRETGE" | "POINT")[] | undefined,
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
+		const result = { opportunity }
 		return {
 			content: [
 				{
 					type: "text",
-					text: JSON.stringify(res, null, 2),
+					text: JSON.stringify(result, null, 2),
 				},
 			],
-			structuredContent: { opportunity: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -297,21 +301,22 @@ server.registerTool(
 		},
 	},
 	async ({ id, test, point, tokenTypes, campaigns, excludeSubCampaigns }) => {
-		const res = await client.getOpportunityCampaigns(id as string, {
+		const opportunity = await client.getOpportunityCampaigns(id as string, {
 			test: test as boolean | undefined,
 			point: point as boolean | undefined,
 			tokenTypes: tokenTypes as ("TOKEN" | "PRETGE" | "POINT")[] | undefined,
 			campaigns: campaigns as boolean | undefined,
 			excludeSubCampaigns: excludeSubCampaigns as boolean | undefined,
 		})
+		const result = { opportunity }
 		return {
 			content: [
 				{
 					type: "text",
-					text: JSON.stringify(res, null, 2),
+					text: JSON.stringify(result, null, 2),
 				},
 			],
-			structuredContent: { opportunity: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -379,12 +384,12 @@ server.registerTool(
 	},
 	async (args) => {
 		const count = await client.countOpportunities(args as any)
-		const res = { count }
+		const result = { count }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { count },
+			structuredContent: result,
 		}
 	}
 )
@@ -456,12 +461,13 @@ server.registerTool(
 		},
 	},
 	async (args) => {
-		const res = await client.binsApr(args as any)
+		const bins = await client.binsApr(args as any)
+		const result = { bins }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { bins: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -533,12 +539,13 @@ server.registerTool(
 		},
 	},
 	async (args) => {
-		const res = await client.binsTvl(args as any)
+		const bins = await client.binsTvl(args as any)
+		const result = { bins }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { bins: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -612,12 +619,13 @@ server.registerTool(
 		},
 	},
 	async ({ field, ...rest }) => {
-		const res = await client.aggregate(field as string, rest as any)
+		const buckets = await client.aggregate(field as string, rest as any)
+		const result = { buckets }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { buckets: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -684,12 +692,13 @@ server.registerTool(
 		},
 	},
 	async ({ field, ...rest }) => {
-		const res = await client.aggregateMax(field as string, rest as any)
+		const value = await client.aggregateMax(field as string, rest as any)
+		const result = { value }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { value: res },
+			structuredContent: result,
 		}
 	}
 )
@@ -756,12 +765,13 @@ server.registerTool(
 		},
 	},
 	async ({ field, ...rest }) => {
-		const res = await client.aggregateMin(field as string, rest as any)
+		const value = await client.aggregateMin(field as string, rest as any)
+		const result = { value }
 		return {
 			content: [
-				{ type: "text", text: JSON.stringify(res, null, 2) },
+				{ type: "text", text: JSON.stringify(result, null, 2) },
 			],
-			structuredContent: { value: res },
+			structuredContent: result,
 		}
 	}
 )
