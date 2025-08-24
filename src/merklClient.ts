@@ -35,6 +35,44 @@ export type OpportunitiesQuery = {
 	excludeSubCampaigns?: boolean
 }
 
+export type CampaignsQuery = {
+	page?: number
+	items?: number
+	name?: string
+	search?: string
+	campaignId?: string
+	creatorSlug?: string
+	chainId?: string // comma-separated numbers per API
+	action?: string // comma-separated actions
+	tokenTypes?: ("TOKEN" | "PRETGE" | "POINT")[]
+	point?: boolean
+	type?: string // comma-separated types
+	creatorAddress?: string
+	tags?: string // comma-separated tags
+	test?: boolean
+	minimumTvl?: number
+	maximumTvl?: number
+	minimumApr?: number
+	maximumApr?: number
+	status?: string // comma-separated LIVE,PAST,SOON
+	identifier?: string
+	tokens?: string // comma-separated symbols
+	rewardTokenSymbol?: string
+	sort?: "apr" | "tvl" | "rewards" | "lastCampaignCreatedAt" | "createdAt"
+	order?: "asc" | "desc"
+	distributionTypes?: ("FIX_REWARD" | "MAX_REWARD" | "DUTCH_AUCTION")[]
+	mainProtocolId?: string // comma-separated ids
+	programSlugs?: string // comma-separated slugs
+	chainName?: string // comma-separated names
+	excludeSubCampaigns?: boolean
+	opportunityId?: string
+	rewardTokenId?: string
+	computeChainId?: string
+	distributionChainId?: string
+	startTimestamp?: number
+	endTimestamp?: number
+}
+
 import nodeFetch from "node-fetch"
 
 type NodeFetch = typeof nodeFetch
@@ -167,6 +205,31 @@ export class MerklClient {
 
 	async aggregateMin(field: string, q: OpportunitiesQuery = {}) {
 		const url = `${this.baseUrl}/v4/opportunities/aggregate/min/${encodeURIComponent(field)}${this.toQuery(q as any)}`
+		return this.fetchJson(url)
+	}
+
+	// Campaign endpoints
+	async listCampaigns(q: CampaignsQuery = {}) {
+		const url = `${this.baseUrl}/v4/campaigns${this.toQuery(q as any)}`
+		return this.fetchJson(url)
+	}
+
+	async getCampaign(
+		id: string,
+		q: {
+			test?: boolean
+			point?: boolean
+			tokenTypes?: ("TOKEN" | "PRETGE" | "POINT")[]
+			excludeSubCampaigns?: boolean
+		} = {}
+	) {
+		if (!id) throw new Error("id is required")
+		const url = `${this.baseUrl}/v4/campaigns/${encodeURIComponent(id)}${this.toQuery(q as any)}`
+		return this.fetchJson(url, { allow404: true })
+	}
+
+	async countCampaigns(q: Omit<CampaignsQuery, "page" | "items"> = {}): Promise<number> {
+		const url = `${this.baseUrl}/v4/campaigns/count${this.toQuery(q as any)}`
 		return this.fetchJson(url)
 	}
 }

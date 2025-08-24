@@ -96,7 +96,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
       "command": "npx",
       "args": ["-y", "merkl-mcp"],
       "env": {
-        "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
+        "MERKL_API_KEY": "(Optional) YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
       }
     }
   }
@@ -113,7 +113,7 @@ Claude Desktop supports MCP over stdio. Add this server to Claude's config and r
       "args": ["dist/src/server.js"],
       "cwd": "./merkl-mcp",
       "env": {
-        "MERKL_API_KEY": "YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
+        "MERKL_API_KEY": "(Optional) YOUR_API_KEY_OR_REMOVE_IF_UNUSED"
       }
     }
   }
