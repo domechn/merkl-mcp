@@ -99,6 +99,7 @@ server.registerTool(
 				.optional(),
 			identifier: z.string({ description: "Filter by identifier (mainParameter)" }).optional(),
 			campaigns: z.boolean({ description: "Include campaign data. Will slow down the request" }).default(true).optional(),
+			excludeEndedCampaigns: z.boolean({ description: "Exclude ended campaigns from the results" }).default(true).optional(),
 			tokens: z.string({ description: "A comma separated list of token symbol. Use to filter by token" }).optional(),
 			rewardTokenSymbol: z
 				.string({ description: "Filter by opportunity with at least 1 campaign where the reward token has this symbol" })
@@ -149,7 +150,9 @@ server.registerTool(
 		if (_(args).has("campaigns") === false) {
 			args = _(args).set("campaigns", true).value()
 		}
+		const excludeEndedCampaigns = args.excludeEndedCampaigns !== false
 		const opportunities = await client.listOpportunities(args as OpportunitiesQuery)
+		const nowTs = Date.now() / 1000
 		const results = _(opportunities).map(r => ({
 			id: r.id,
 			name: r.name,
@@ -167,7 +170,7 @@ server.registerTool(
 				endTimestamp: c.endTimestamp,
 				apr: c.apr,
 				createdAt: c.createdAt,
-			})).value()
+			})).filter(c => c.endTimestamp >= nowTs || !excludeEndedCampaigns).value()
 		})).value()
 		const result = { results }
 		return {
